@@ -101,23 +101,26 @@ contract BorrowTrackerBadDebtExtension is IBorrowTracker {
     function getLiquidatableAccounts(address borrowable, uint256 startIndex, uint256 endIndex)
         public
         view
-        returns (address[] memory liquidatableAccounts)
+        returns (address[] memory)
     {
         address collateral = IBorrowable(borrowable).collateral();
-        address[] memory underwaterAccounts = new address[](endIndex - startIndex);
-        uint256 liquidatableCount = 0;
+        uint positionCount = endIndex - startIndex;
+        address[] memory underwaterAccounts = new address[](positionCount);
+        uint256 healthyPositionCount = 0;
         for (uint256 i = startIndex; i < endIndex; i++) {
             address borrower = borrowers[borrowable][i];
             (, uint256 shortfall) = ICollateral(collateral).accountLiquidity(borrower);
-            if (shortfall != 0) {
-                underwaterAccounts[liquidatableCount] = borrower;
-                liquidatableCount++;
+            if (shortfall == 0) {
+                healthyPositionCount++;
+            } else {
+                underwaterAccounts[i - healthyPositionCount] = borrower;
             }
         }
 
-        liquidatableAccounts = new address[](liquidatableCount);
-        for (uint256 i = 0; i < liquidatableCount; i++) {
-            liquidatableAccounts[i] = underwaterAccounts[i];
+        // Reduces the length of the liquidatable positions array by `healthyPositionCount`
+        assembly {
+          mstore(underwaterAccounts, sub(positionCount, healthyPositionCount))
         }
+        return underwaterAccounts;
     }
 }
